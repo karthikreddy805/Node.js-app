@@ -34,6 +34,17 @@ jobs:
       - name: Build Docker Image
         run: docker build . -t karthikreddy805/nodejs-app
 
+      - name: Verify secrets exist
+        run: |
+          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
+            echo "DOCKERHUB_USERNAME secret missing"
+            exit 1
+          fi
+          if [ -z "${{ secrets.DOCKERHUB_PASSWORD }}" ]; then
+            echo "DOCKERHUB_PASSWORD secret missing"
+            exit 1
+          fi  
+
 
       - name: Login to Docker Hub
         env:
