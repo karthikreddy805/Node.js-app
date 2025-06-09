@@ -1,3 +1,4 @@
+
 name: CI/CD Pipeline
 
 on:
@@ -32,9 +33,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Docker Image
-        run: docker build . -t karthikreddy805/nodejs-app:latest
+        run: docker build . -t karthikreddy805/nodejs-app
 
-      - name: Verify DockerHub secrets exist
+      - name: Verify secrets exist
         run: |
           if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
             echo "DOCKERHUB_USERNAME secret missing"
@@ -45,60 +46,13 @@ jobs:
             exit 1
           fi  
 
+
       - name: Login to Docker Hub
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
         run: echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
 
-      - name: Start SonarQube + DB Containers
-        run: |
-          docker network create sonar-net
-
-          docker run -d --name postgres \
-            --network sonar-net \
-            -e POSTGRES_USER=sonar \
-            -e POSTGRES_PASSWORD=sonar \
-            -e POSTGRES_DB=sonarqube \
-            postgres:13
-
-          docker run -d --name sonarqube \
-            --network sonar-net \
-            -p 9000:9000 \
-            -e SONAR_JDBC_URL=jdbc:postgresql://postgres:5432/sonarqube \
-            -e SONAR_JDBC_USERNAME=sonar \
-            -e SONAR_JDBC_PASSWORD=sonar \
-            sonarqube:lts
-
-      - name: Wait for SonarQube to be healthy
-        run: |
-          for i in {1..10}; do
-            STATUS=$(docker run --rm --network sonar-net curlimages/curl:7.85.0 curl -s http://sonarqube:9000/api/system/health | jq -r .status || echo "DOWN")
-            if [ "$STATUS" = "GREEN" ]; then
-              echo "SonarQube is ready!"
-              break
-            fi
-            echo "Waiting... $i"
-            sleep 5
-          done
-
-      - name: Run Sonar Scanner
-        run: |
-          docker run --rm \
-            --network sonar-net \
-            -v "${{ github.workspace }}:/usr/src" \
-            sonarsource/sonar-scanner-cli \
-            -Dsonar.projectKey=nodejs-app \
-            -Dsonar.sources=. \
-            -Dsonar.host.url=http://sonarqube:9000 \
-            -Dsonar.login=admin \
-            -Dsonar.password=admin
 
       - name: Push Docker Image
         run: docker push karthikreddy805/nodejs-app:latest
-
-      - name: Cleanup Containers and Network
-        if: always()
-        run: |
-          docker rm -f sonarqube postgres || true
-          docker network rm sonar-net || true
