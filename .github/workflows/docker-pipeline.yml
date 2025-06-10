@@ -35,7 +35,6 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-          
 
       - name: Install Dependencies
         run: npm install
@@ -51,25 +50,28 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Build Docker Image
-        run: docker build . -t karthikreddy805/nodejs-app:latest
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
 
-      - name: Verify DockerHub Secrets
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Automatic Tagging of Releases
+        id: increment-git-tag
         run: |
-          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
-            echo "DOCKERHUB_USERNAME secret missing"
-            exit 1
-          fi
-          if [ -z "${{ secrets.DOCKERHUB_PASSWORD }}" ]; then
-            echo "DOCKERHUB_PASSWORD secret missing"
-            exit 1
-          fi
+          bash ./build/git_update.sh -v major
 
-      - name: Login to Docker Hub
+      - name: Build, Tag, and Push the Image to Amazon ECR
+        id: build-image
         env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
-        run: echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-
-      - name: Push Docker Image
-        run: docker push karthikreddy805/nodejs-app:latest
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: push-ecr
+          IMAGE_TAG: ${{ steps.increment-git-tag.outputs.git-tag }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
