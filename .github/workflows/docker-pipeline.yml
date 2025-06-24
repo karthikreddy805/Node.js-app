@@ -2,7 +2,10 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - Dev
+      - staging
 
 jobs:
   build-test:
@@ -50,6 +53,20 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Set Environment Variables Based on Branch
+        run: |
+          echo "Current branch: $GITHUB_REF_NAME"
+          if [[ "$GITHUB_REF_NAME" == "Dev" ]]; then
+            echo "CI_ENVIRONMENT_NAME=dev" >> $GITHUB_ENV
+            echo "AWS_ECR_REPOSITORY_NAME=dev" >> $GITHUB_ENV
+          elif [[ "$GITHUB_REF_NAME" == "staging" ]]; then
+            echo "CI_ENVIRONMENT_NAME=staging" >> $GITHUB_ENV
+            echo "AWS_ECR_REPOSITORY_NAME=staging" >> $GITHUB_ENV
+          else
+            echo "CI_ENVIRONMENT_NAME=default" >> $GITHUB_ENV
+            echo "AWS_ECR_REPOSITORY_NAME=node.js" >> $GITHUB_ENV
+          fi
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
@@ -75,11 +92,10 @@ jobs:
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: node.js
           IMAGE_TAG: latest
         run: |
-          echo "ECR_REGISTRY: $ECR_REGISTRY"
-          IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "Using ECR repo: $AWS_ECR_REPOSITORY_NAME"
+          IMAGE_URI="$ECR_REGISTRY/$AWS_ECR_REPOSITORY_NAME:$IMAGE_TAG"
           echo "Building Docker image: $IMAGE_URI"
           docker build -t "$IMAGE_URI" .
           docker push "$IMAGE_URI"
