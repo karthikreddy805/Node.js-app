@@ -75,7 +75,7 @@ jobs:
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: push-ecr
+          ECR_REPOSITORY: node.js
           IMAGE_NAME: nodejs-app
           IMAGE_TAG: latest
         run: |
