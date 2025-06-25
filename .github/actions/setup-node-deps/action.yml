@@ -1,0 +1,17 @@
+name: 'Setup Node.js and Install Dependencies'
+description: 'Sets up Node.js and installs npm dependencies'
+inputs:
+  node-version:
+    description: 'Node.js version to use'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install Dependencies
+      run: npm install
+      shell: bash
