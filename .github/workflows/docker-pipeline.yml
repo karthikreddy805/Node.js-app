@@ -1,94 +1,22 @@
-name: CI/CD Pipeline
+name: Test Kubernetes Deployment with KinD
 
 on:
   push:
     branches:
       - main
-      - Dev
-      - staging
 
 jobs:
-  build-test:
+  test-k8s:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: ./.github/actions/setup-node-deps
-        with:
-          node-version: '18'
+      - name: Set up KinD cluster
+        uses: helm/kind-action@v1.8.0
 
-      - name: Run Tests
-        run: npm test
-
-  unit-test:
-    needs: build-test
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: ./.github/actions/setup-node-deps
-        with:
-          node-version: '18'
-          
-      - name: Run Unit Tests
-        run: npm run test
-
-  docker-deploy:
-    needs: unit-test
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set Environment Variables Based on Branch
-        uses: ./.github/actions/set-env-by-branch
-        with:
-          branch: ${{ github.ref_name }}
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1  
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
-
-      - name: Build, Tag, and Push the Image to Amazon ECR
-        id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: latest
+      - name: Apply Kubernetes manifests
         run: |
-          echo "Using ECR repo: $AWS_ECR_REPOSITORY_NAME"
-          IMAGE_URI="$ECR_REGISTRY/$AWS_ECR_REPOSITORY_NAME:$IMAGE_TAG"
-          echo "Building Docker image: $IMAGE_URI"
-          docker build -t "$IMAGE_URI" .
-          docker push "$IMAGE_URI"
-          
-#  ecs-deploy:
-#   - name: Register updated ECS Task Definition
-#        id: task-def
-#        run: |
-#          TASK_FAMILY=$SERVICE_NAME
-#          IMAGE="$ECR_URI:$GITHUB_REF_NAME"
-#          NEW_DEF=$(aws ecs describe-task-definition --task-definition $TASK_FAMILY)
-#          echo "$NEW_DEF" | jq --arg IMAGE "$IMAGE" '.taskDefinition.containerDefinitions[0].image = $IMAGE |
-#         {family: .taskDefinition.family, containerDefinitions: .taskDefinition.containerDefinitions}' > task-def.json
-#          echo "task-def.json created"
- 
-#      - name: Deploy to ECS
-#        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-#        with:
-#          task-definition: task-def.json
-#          service: ${{ env.SERVICE_NAME }}
-#          cluster: ${{ env.CLUSTER_NAME }}
+          kubectl apply -f ./deployment.yaml
+          kubectl get pods
